@@ -16,7 +16,7 @@
     width: 60px; height: 60px;
     background: #eee;
     display: flex; justify-content: center; align-items: center;
-    font-size: 22px; font-weight: bold;
+    font-size: 32px; /* plus grand pour les emoji */
     border-radius: 6px;
     cursor: pointer;
   }
@@ -38,25 +38,25 @@ let board = [];
 let selected = null;
 let currentPlayer = 1;
 
-// Définition des pièces
+// Définition des pièces avec emoji
 const pieceTypes = {
   warrior: {
-    name: "G",
+    emoji: "⚔️",
     moves: [[1,0],[-1,0],[0,1],[0,-1]],
     attackRange: 1
   },
   archer: {
-    name: "A",
+    emoji: "🏹",
     moves: [[1,0],[-1,0],[0,1],[0,-1]],
     attackRange: 2
   },
   knight: {
-    name: "C",
+    emoji: "🐎",
     moves: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]],
     attackRange: 1
   },
   mage: {
-    name: "M",
+    emoji: "🔮",
     moves: [
       [1,0],[-1,0],[0,1],[0,-1],
       [1,1],[1,-1],[-1,1],[-1,-1]
@@ -114,7 +114,7 @@ function drawBoard() {
           cell.classList.add("rock");
           cell.textContent = "⛰️";
         } else {
-          cell.textContent = pieceTypes[content.type].name + content.player;
+          cell.textContent = pieceTypes[content.type].emoji;
         }
       }
 
@@ -165,7 +165,7 @@ function getMoves(sel) {
     if (
       nx >= 0 && nx < size &&
       ny >= 0 && ny < size &&
-      !board[ny][nx] // pas de pièce ni rocher
+      !board[ny][nx]
     ) {
       moves.push({ x: nx, y: ny });
     }
