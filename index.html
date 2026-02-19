@@ -2,287 +2,170 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Jeu de Plateau 7x7</title>
+<title>Bataille – Nord & Sud</title>
 <style>
   body { font-family: Arial; text-align: center; }
-  #board {
-    display: grid;
-    grid-template-columns: repeat(7, 60px);
-    grid-template-rows: repeat(7, 60px);
-    gap: 3px;
-    margin: 20px auto;
+  #battlefield {
+    display: flex;
+    justify-content: space-between;
+    width: 700px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #eef;
+    border-radius: 10px;
   }
-  .cell {
-    width: 60px; height: 60px;
-    background: #eee;
-    display: flex; justify-content: center; align-items: center;
-    font-size: 32px;
-    border-radius: 6px;
+  .unit {
+    font-size: 40px;
     cursor: pointer;
+    padding: 10px;
   }
-  .rock { background: #555; color: white; }
-  .highlight { background: #b3e5fc; }
-  .attack { background: #ffccbc; }
+  #log { margin-top: 20px; white-space: pre-line; }
+  button { padding: 10px 20px; margin: 10px; font-size: 18px; }
 </style>
 </head>
 <body>
 
-<h1>Jeu de Plateau 7×7</h1>
+<h1>Bataille – Mini Nord & Sud</h1>
 
-<h3>Mode de jeu</h3>
-<select id="mode">
-  <option value="pvp">Humain vs Humain</option>
-  <option value="ai_easy">Humain vs IA (facile)</option>
-  <option value="ai_hard">Humain vs IA (difficile)</option>
-</select>
+<div id="battlefield"></div>
 
 <h2>Tour du joueur <span id="turn">1</span></h2>
 
-<div id="board"></div>
+<button onclick="moveLeft()">⬅️ Gauche</button>
+<button onclick="moveRight()">➡️ Droite</button>
+
+<div id="log"></div>
 
 <script>
-const size = 7;
-let board = [];
-let selected = null;
-let currentPlayer = 1;
-
-// Pièces avec emoji
-const pieceTypes = {
-  warrior: { emoji: "⚔️", moves: [[1,0],[-1,0],[0,1],[0,-1]], attackRange: 1 },
-  archer:  { emoji: "🏹", moves: [[1,0],[-1,0],[0,1],[0,-1]], attackRange: 2 },
-  knight:  { emoji: "🐎", moves: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]], attackRange: 1 },
-  mage:    { emoji: "🔮", moves: [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]], attackRange: 3 }
+// Unités avec emoji
+const unitTypes = {
+  infantry:  { emoji: "🪖", beats: "cavalry" },
+  cavalry:   { emoji: "🐎", beats: "artillery" },
+  artillery: { emoji: "💣", beats: "infantry" }
 };
 
-function initBoard() {
-  board = Array(size).fill(null).map(() => Array(size).fill(null));
+// Armées
+let army1 = [
+  { type: "infantry",  pos: 1 },
+  { type: "cavalry",   pos: 2 },
+  { type: "artillery", pos: 3 }
+];
 
-  // Joueur 1
-  board[0][0] = { player: 1, type: "warrior" };
-  board[0][2] = { player: 1, type: "archer" };
-  board[0][4] = { player: 1, type: "knight" };
-  board[0][6] = { player: 1, type: "mage" };
+let army2 = [
+  { type: "infantry",  pos: 7 },
+  { type: "cavalry",   pos: 6 },
+  { type: "artillery", pos: 5 }
+];
 
-  // Joueur 2
-  board[6][6] = { player: 2, type: "warrior" };
-  board[6][4] = { player: 2, type: "archer" };
-  board[6][2] = { player: 2, type: "knight" };
-  board[6][0] = { player: 2, type: "mage" };
+let currentPlayer = 1;
+let selected = null;
 
-  placeRocks(6);
-}
+function draw() {
+  const field = document.getElementById("battlefield");
+  field.innerHTML = "";
 
-function placeRocks(count) {
-  let placed = 0;
-  while (placed < count) {
-    const x = Math.floor(Math.random() * size);
-    const y = Math.floor(Math.random() * size);
-    if (!board[y][x]) {
-      board[y][x] = { rock: true };
-      placed++;
+  for (let i = 1; i <= 7; i++) {
+    let cell = document.createElement("div");
+    cell.style.width = "80px";
+    cell.style.height = "80px";
+    cell.style.display = "flex";
+    cell.style.alignItems = "center";
+    cell.style.justifyContent = "center";
+
+    let u1 = army1.find(u => u.pos === i);
+    let u2 = army2.find(u => u.pos === i);
+
+    if (u1) {
+      let div = document.createElement("div");
+      div.className = "unit";
+      div.textContent = unitTypes[u1.type].emoji;
+      div.onclick = () => selectUnit(1, u1);
+      cell.appendChild(div);
     }
-  }
-}
 
-function drawBoard() {
-  const container = document.getElementById("board");
-  container.innerHTML = "";
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      cell.dataset.x = x;
-      cell.dataset.y = y;
-
-      const content = board[y][x];
-
-      if (content) {
-        if (content.rock) {
-          cell.classList.add("rock");
-          cell.textContent = "⛰️";
-        } else {
-          cell.textContent = pieceTypes[content.type].emoji;
-        }
-      }
-
-      cell.onclick = () => onCellClick(x, y);
-      container.appendChild(cell);
+    if (u2) {
+      let div = document.createElement("div");
+      div.className = "unit";
+      div.textContent = unitTypes[u2.type].emoji;
+      div.onclick = () => selectUnit(2, u2);
+      cell.appendChild(div);
     }
+
+    field.appendChild(cell);
   }
 }
 
-function onCellClick(x, y) {
-  const piece = board[y][x];
+function selectUnit(player, unit) {
+  if (player !== currentPlayer) return;
+  selected = unit;
+  log("Unité sélectionnée : " + unitTypes[unit.type].emoji);
+}
 
-  // Sélection
-  if (piece && !piece.rock && piece.player === currentPlayer) {
-    selected = { x, y, piece };
-    highlightMoves();
-    return;
-  }
-
+function moveLeft() {
   if (!selected) return;
-
-  const moves = getMoves(selected);
-  const attacks = getAttacks(selected);
-
-  const isMove = moves.some(m => m.x === x && m.y === y);
-  const isAttack = attacks.some(a => a.x === x && a.y === y);
-
-  if (isMove || isAttack) {
-    board[y][x] = selected.piece;
-    board[selected.y][selected.x] = null;
-    endTurn();
-  }
+  selected.pos--;
+  resolveCombat();
+  endTurn();
 }
 
-function getMoves(sel) {
-  const { x, y, piece } = sel;
-  const type = pieceTypes[piece.type];
-  const moves = [];
-
-  type.moves.forEach(([dx, dy]) => {
-    const nx = x + dx, ny = y + dy;
-    if (nx >= 0 && nx < size && ny >= 0 && ny < size && !board[ny][nx])
-      moves.push({ x: nx, y: ny });
-  });
-
-  return moves;
+function moveRight() {
+  if (!selected) return;
+  selected.pos++;
+  resolveCombat();
+  endTurn();
 }
 
-function getAttacks(sel) {
-  const { x, y, piece } = sel;
-  const type = pieceTypes[piece.type];
-  const attacks = [];
+function resolveCombat() {
+  for (let i = 1; i <= 7; i++) {
+    let u1 = army1.find(u => u.pos === i);
+    let u2 = army2.find(u => u.pos === i);
 
-  for (let dy = -type.attackRange; dy <= type.attackRange; dy++) {
-    for (let dx = -type.attackRange; dx <= type.attackRange; dx++) {
-      if (dx === 0 && dy === 0) continue;
-
-      const nx = x + dx, ny = y + dy;
-      if (nx < 0 || nx >= size || ny < 0 || ny >= size) continue;
-
-      const target = board[ny][nx];
-      if (target && !target.rock && target.player !== currentPlayer) {
-        if (!isBlockedByRock(x, y, nx, ny))
-          attacks.push({ x: nx, y: ny });
-      }
+    if (u1 && u2) {
+      fight(u1, u2);
     }
   }
-  return attacks;
 }
 
-function isBlockedByRock(x1, y1, x2, y2) {
-  const dx = Math.sign(x2 - x1);
-  const dy = Math.sign(y2 - y1);
-  let cx = x1 + dx, cy = y1 + dy;
+function fight(a, b) {
+  const A = unitTypes[a.type];
+  const B = unitTypes[b.type];
 
-  while (cx !== x2 || cy !== y2) {
-    if (board[cy][cx] && board[cy][cx].rock) return true;
-    cx += dx; cy += dy;
+  if (A.beats === b.type) {
+    log(`${A.emoji} bat ${B.emoji}`);
+    army2 = army2.filter(u => u !== b);
+  } else if (B.beats === a.type) {
+    log(`${B.emoji} bat ${A.emoji}`);
+    army1 = army1.filter(u => u !== a);
+  } else {
+    log(`${A.emoji} et ${B.emoji} s'éliminent`);
+    army1 = army1.filter(u => u !== a);
+    army2 = army2.filter(u => u !== b);
   }
-  return false;
+
+  checkVictory();
 }
 
-function highlightMoves() {
-  drawBoard();
-  getMoves(selected).forEach(m => {
-    document.querySelector(`[data-x="${m.x}"][data-y="${m.y}"]`).classList.add("highlight");
-  });
-  getAttacks(selected).forEach(a => {
-    document.querySelector(`[data-x="${a.x}"][data-y="${a.y}"]`).classList.add("attack");
-  });
+function checkVictory() {
+  if (army1.length === 0) {
+    alert("Joueur 2 gagne !");
+  }
+  if (army2.length === 0) {
+    alert("Joueur 1 gagne !");
+  }
 }
 
 function endTurn() {
   selected = null;
   currentPlayer = currentPlayer === 1 ? 2 : 1;
   document.getElementById("turn").textContent = currentPlayer;
-  drawBoard();
-
-  if (isAITurn()) setTimeout(aiPlay, 400);
+  draw();
 }
 
-function isAITurn() {
-  const mode = document.getElementById("mode").value;
-  return (mode === "ai_easy" || mode === "ai_hard") && currentPlayer === 2;
+function log(t) {
+  document.getElementById("log").textContent += t + "\n";
 }
 
-function aiPlay() {
-  const mode = document.getElementById("mode").value;
-  if (mode === "ai_easy") aiEasy();
-  else aiHard();
-}
-
-function getAllPieces(player) {
-  const list = [];
-  for (let y = 0; y < size; y++)
-    for (let x = 0; x < size; x++) {
-      const p = board[y][x];
-      if (p && !p.rock && p.player === player)
-        list.push({ x, y, piece: p });
-    }
-  return list;
-}
-
-function applyMove(sel, target) {
-  board[target.y][target.x] = sel.piece;
-  board[sel.y][sel.x] = null;
-  endTurn();
-}
-
-function aiEasy() {
-  const pieces = getAllPieces(2);
-  const p = pieces[Math.floor(Math.random() * pieces.length)];
-
-  const moves = getMoves(p);
-  const attacks = getAttacks(p);
-
-  if (attacks.length) return applyMove(p, attacks[0]);
-  if (moves.length) return applyMove(p, moves[0]);
-
-  endTurn();
-}
-
-function distanceToClosestEnemy(x, y) {
-  let min = Infinity;
-  const enemies = getAllPieces(1);
-  for (const e of enemies) {
-    const d = Math.abs(e.x - x) + Math.abs(e.y - y);
-    if (d < min) min = d;
-  }
-  return min;
-}
-
-function aiHard() {
-  const pieces = getAllPieces(2);
-
-  // 1. attaque si possible
-  for (const p of pieces) {
-    const attacks = getAttacks(p);
-    if (attacks.length) return applyMove(p, attacks[0]);
-  }
-
-  // 2. avance vers l’ennemi
-  for (const p of pieces) {
-    const moves = getMoves(p);
-    if (!moves.length) continue;
-
-    const best = moves.reduce((best, m) => {
-      const dist = distanceToClosestEnemy(m.x, m.y);
-      return dist < best.dist ? { move: m, dist } : best;
-    }, { move: null, dist: Infinity });
-
-    if (best.move) return applyMove(p, best.move);
-  }
-
-  // 3. sinon aléatoire
-  aiEasy();
-}
-
-initBoard();
-drawBoard();
+draw();
 </script>
 
 </body>
