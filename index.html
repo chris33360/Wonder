@@ -2,170 +2,136 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Bataille – Nord & Sud</title>
+<title>Mini Bataille – Nord & Sud</title>
 <style>
   body { font-family: Arial; text-align: center; }
-  #battlefield {
-    display: flex;
-    justify-content: space-between;
-    width: 700px;
-    margin: 40px auto;
-    padding: 20px;
+  #field {
+    width: 800px;
+    height: 120px;
     background: #eef;
+    margin: 30px auto;
+    position: relative;
     border-radius: 10px;
+    overflow: hidden;
   }
   .unit {
+    position: absolute;
     font-size: 40px;
-    cursor: pointer;
-    padding: 10px;
+    transition: left 0.1s linear;
   }
-  #log { margin-top: 20px; white-space: pre-line; }
   button { padding: 10px 20px; margin: 10px; font-size: 18px; }
 </style>
 </head>
 <body>
 
-<h1>Bataille – Mini Nord & Sud</h1>
+<h1>Mini Bataille – Style Nord & Sud</h1>
 
-<div id="battlefield"></div>
+<h3>Mode de jeu</h3>
+<select id="mode">
+  <option value="pvp">Humain vs Humain</option>
+  <option value="ai_easy">Humain vs IA (facile)</option>
+  <option value="ai_hard">Humain vs IA (difficile)</option>
+</select>
 
-<h2>Tour du joueur <span id="turn">1</span></h2>
+<div id="field"></div>
 
-<button onclick="moveLeft()">⬅️ Gauche</button>
-<button onclick="moveRight()">➡️ Droite</button>
+<h2>Envoyer une unité</h2>
+<button onclick="spawnUnit(1,'infantry')">🪖 Infanterie</button>
+<button onclick="spawnUnit(1,'cavalry')">🐎 Cavalerie</button>
+<button onclick="spawnUnit(1,'artillery')">💣 Artillerie</button>
 
-<div id="log"></div>
+<h2 id="status"></h2>
 
 <script>
-// Unités avec emoji
-const unitTypes = {
-  infantry:  { emoji: "🪖", beats: "cavalry" },
-  cavalry:   { emoji: "🐎", beats: "artillery" },
-  artillery: { emoji: "💣", beats: "infantry" }
+const field = document.getElementById("field");
+let units = [];
+
+const stats = {
+  infantry:  { emoji:"🪖", speed:1,  range:40, power:2 },
+  cavalry:   { emoji:"🐎", speed:2,  range:20, power:3 },
+  artillery: { emoji:"💣", speed:0.5, range:120, power:4 }
 };
 
-// Armées
-let army1 = [
-  { type: "infantry",  pos: 1 },
-  { type: "cavalry",   pos: 2 },
-  { type: "artillery", pos: 3 }
-];
+function spawnUnit(player, type) {
+  const u = document.createElement("div");
+  u.className = "unit";
+  u.textContent = stats[type].emoji;
 
-let army2 = [
-  { type: "infantry",  pos: 7 },
-  { type: "cavalry",   pos: 6 },
-  { type: "artillery", pos: 5 }
-];
+  const obj = {
+    el: u,
+    player,
+    type,
+    x: player === 1 ? 10 : 750,
+    hp: 5
+  };
 
-let currentPlayer = 1;
-let selected = null;
+  u.style.left = obj.x + "px";
+  u.style.top = (player === 1 ? 20 : 60) + "px";
 
-function draw() {
-  const field = document.getElementById("battlefield");
-  field.innerHTML = "";
+  field.appendChild(u);
+  units.push(obj);
+}
 
-  for (let i = 1; i <= 7; i++) {
-    let cell = document.createElement("div");
-    cell.style.width = "80px";
-    cell.style.height = "80px";
-    cell.style.display = "flex";
-    cell.style.alignItems = "center";
-    cell.style.justifyContent = "center";
-
-    let u1 = army1.find(u => u.pos === i);
-    let u2 = army2.find(u => u.pos === i);
-
-    if (u1) {
-      let div = document.createElement("div");
-      div.className = "unit";
-      div.textContent = unitTypes[u1.type].emoji;
-      div.onclick = () => selectUnit(1, u1);
-      cell.appendChild(div);
-    }
-
-    if (u2) {
-      let div = document.createElement("div");
-      div.className = "unit";
-      div.textContent = unitTypes[u2.type].emoji;
-      div.onclick = () => selectUnit(2, u2);
-      cell.appendChild(div);
-    }
-
-    field.appendChild(cell);
+function update() {
+  for (let u of units) {
+    const s = stats[u.type];
+    u.x += u.player === 1 ? s.speed : -s.speed;
+    u.el.style.left = u.x + "px";
   }
-}
 
-function selectUnit(player, unit) {
-  if (player !== currentPlayer) return;
-  selected = unit;
-  log("Unité sélectionnée : " + unitTypes[unit.type].emoji);
-}
-
-function moveLeft() {
-  if (!selected) return;
-  selected.pos--;
   resolveCombat();
-  endTurn();
-}
+  removeDead();
+  checkVictory();
 
-function moveRight() {
-  if (!selected) return;
-  selected.pos++;
-  resolveCombat();
-  endTurn();
+  requestAnimationFrame(update);
 }
 
 function resolveCombat() {
-  for (let i = 1; i <= 7; i++) {
-    let u1 = army1.find(u => u.pos === i);
-    let u2 = army2.find(u => u.pos === i);
+  for (let a of units) {
+    for (let b of units) {
+      if (a.player !== b.player) {
+        const dist = Math.abs(a.x - b.x);
+        const ra = stats[a.type].range;
+        const rb = stats[b.type].range;
 
-    if (u1 && u2) {
-      fight(u1, u2);
+        if (dist < ra) b.hp -= stats[a.type].power;
+        if (dist < rb) a.hp -= stats[b.type].power;
+      }
     }
   }
 }
 
-function fight(a, b) {
-  const A = unitTypes[a.type];
-  const B = unitTypes[b.type];
-
-  if (A.beats === b.type) {
-    log(`${A.emoji} bat ${B.emoji}`);
-    army2 = army2.filter(u => u !== b);
-  } else if (B.beats === a.type) {
-    log(`${B.emoji} bat ${A.emoji}`);
-    army1 = army1.filter(u => u !== a);
-  } else {
-    log(`${A.emoji} et ${B.emoji} s'éliminent`);
-    army1 = army1.filter(u => u !== a);
-    army2 = army2.filter(u => u !== b);
-  }
-
-  checkVictory();
+function removeDead() {
+  units = units.filter(u => {
+    if (u.hp <= 0) {
+      u.el.remove();
+      return false;
+    }
+    return true;
+  });
 }
 
 function checkVictory() {
-  if (army1.length === 0) {
-    alert("Joueur 2 gagne !");
+  const p1 = units.some(u => u.player === 1);
+  const p2 = units.some(u => u.player === 2);
+
+  if (!p1) document.getElementById("status").textContent = "Joueur 2 gagne !";
+  if (!p2) document.getElementById("status").textContent = "Joueur 1 gagne !";
+}
+
+function aiLoop() {
+  const mode = document.getElementById("mode").value;
+  if (mode === "pvp") return;
+
+  if (Math.random() < (mode === "ai_easy" ? 0.02 : 0.05)) {
+    const types = ["infantry","cavalry","artillery"];
+    const pick = types[Math.floor(Math.random()*types.length)];
+    spawnUnit(2, pick);
   }
-  if (army2.length === 0) {
-    alert("Joueur 1 gagne !");
-  }
 }
 
-function endTurn() {
-  selected = null;
-  currentPlayer = currentPlayer === 1 ? 2 : 1;
-  document.getElementById("turn").textContent = currentPlayer;
-  draw();
-}
-
-function log(t) {
-  document.getElementById("log").textContent += t + "\n";
-}
-
-draw();
+setInterval(aiLoop, 200);
+update();
 </script>
 
 </body>
