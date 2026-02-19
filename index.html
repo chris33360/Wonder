@@ -2,136 +2,251 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Mini Bataille – Nord & Sud</title>
+<title>Duel de Canons – Charge & Tir</title>
 <style>
   body { font-family: Arial; text-align: center; }
-  #field {
-    width: 800px;
-    height: 120px;
-    background: #eef;
-    margin: 30px auto;
+  #game {
     position: relative;
+    width: 900px;
+    height: 400px;
+    margin: 20px auto;
+    background: linear-gradient(#87ceeb 50%, #4caf50 50%);
     border-radius: 10px;
     overflow: hidden;
   }
-  .unit {
+  .cannon {
     position: absolute;
     font-size: 40px;
-    transition: left 0.1s linear;
   }
-  button { padding: 10px 20px; margin: 10px; font-size: 18px; }
+  #player { left: 40px; bottom: 180px; }
+  #ai { right: 40px; bottom: 180px; }
+  .projectile {
+    position: absolute;
+    font-size: 24px;
+  }
+  #powerBar {
+    width: 300px;
+    height: 20px;
+    background: #ddd;
+    margin: 10px auto;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  #powerFill {
+    height: 100%;
+    width: 0%;
+    background: red;
+  }
 </style>
 </head>
 <body>
 
-<h1>Mini Bataille – Style Nord & Sud</h1>
+<h1>Duel de Canons – Tir en continu</h1>
 
-<h3>Mode de jeu</h3>
-<select id="mode">
-  <option value="pvp">Humain vs Humain</option>
-  <option value="ai_easy">Humain vs IA (facile)</option>
-  <option value="ai_hard">Humain vs IA (difficile)</option>
-</select>
+<div id="game">
+  <div id="player" class="cannon">💣</div>
+  <div id="ai" class="cannon">💣</div>
+</div>
 
-<div id="field"></div>
+<h3>Maintiens clic ou ESPACE pour charger, relâche pour tirer</h3>
 
-<h2>Envoyer une unité</h2>
-<button onclick="spawnUnit(1,'infantry')">🪖 Infanterie</button>
-<button onclick="spawnUnit(1,'cavalry')">🐎 Cavalerie</button>
-<button onclick="spawnUnit(1,'artillery')">💣 Artillerie</button>
+<div id="powerBar"><div id="powerFill"></div></div>
 
-<h2 id="status"></h2>
+<h2 id="status">Charge ton tir…</h2>
 
 <script>
-const field = document.getElementById("field");
-let units = [];
+const game = document.getElementById("game");
+const player = document.getElementById("player");
+const ai = document.getElementById("ai");
+const statusEl = document.getElementById("status");
+const powerFill = document.getElementById("powerFill");
 
-const stats = {
-  infantry:  { emoji:"🪖", speed:1,  range:40, power:2 },
-  cavalry:   { emoji:"🐎", speed:2,  range:20, power:3 },
-  artillery: { emoji:"💣", speed:0.5, range:120, power:4 }
-};
+let charging = false;
+let power = 0;
+let projectile = null;
+let aiAlive = true;
+let playerAlive = true;
 
-function spawnUnit(player, type) {
-  const u = document.createElement("div");
-  u.className = "unit";
-  u.textContent = stats[type].emoji;
+// -------------------------
+// CHARGE DU TIR
+// -------------------------
+function startCharge() {
+  if (!playerAlive || !aiAlive) return;
+  charging = true;
+  power = 0;
+  chargeLoop();
+}
 
-  const obj = {
-    el: u,
-    player,
-    type,
-    x: player === 1 ? 10 : 750,
-    hp: 5
+function stopCharge() {
+  if (!charging) return;
+  charging = false;
+  shoot(power);
+}
+
+function chargeLoop() {
+  if (!charging) return;
+  power += 1;
+  if (power > 100) power = 100;
+  powerFill.style.width = power + "%";
+  requestAnimationFrame(chargeLoop);
+}
+
+// -------------------------
+// TIR DU JOUEUR
+// -------------------------
+function shoot(power) {
+  const rect = game.getBoundingClientRect();
+  const cRect = player.getBoundingClientRect();
+
+  const startX = cRect.left - rect.left + 30;
+  const startY = rect.bottom - cRect.top - 20;
+
+  const angle = 45 * Math.PI / 180;
+  const speed = power / 4;
+
+  projectile = {
+    x: startX,
+    y: startY,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    el: createProjectile(startX, startY)
   };
 
-  u.style.left = obj.x + "px";
-  u.style.top = (player === 1 ? 20 : 60) + "px";
-
-  field.appendChild(u);
-  units.push(obj);
+  animateProjectile();
 }
 
-function update() {
-  for (let u of units) {
-    const s = stats[u.type];
-    u.x += u.player === 1 ? s.speed : -s.speed;
-    u.el.style.left = u.x + "px";
+function createProjectile(x, y) {
+  const p = document.createElement("div");
+  p.className = "projectile";
+  p.textContent = "🧨";
+  p.style.left = x + "px";
+  p.style.bottom = y + "px";
+  game.appendChild(p);
+  return p;
+}
+
+// -------------------------
+// ANIMATION DU PROJECTILE
+// -------------------------
+function animateProjectile() {
+  if (!projectile) return;
+
+  projectile.x += projectile.vx;
+  projectile.y += projectile.vy;
+  projectile.vy -= 0.2; // gravité
+
+  projectile.el.style.left = projectile.x + "px";
+  projectile.el.style.bottom = projectile.y + "px";
+
+  // sol
+  if (projectile.y <= 0) return endShot();
+
+  // hors écran
+  if (projectile.x < 0 || projectile.x > 900) return endShot();
+
+  // collision IA
+  if (checkHit(ai, projectile.x, projectile.y)) {
+    ai.textContent = "💥";
+    aiAlive = false;
+    statusEl.textContent = "🎉 Tu as gagné !";
+    return endShot(true);
   }
 
-  resolveCombat();
-  removeDead();
-  checkVictory();
-
-  requestAnimationFrame(update);
+  requestAnimationFrame(animateProjectile);
 }
 
-function resolveCombat() {
-  for (let a of units) {
-    for (let b of units) {
-      if (a.player !== b.player) {
-        const dist = Math.abs(a.x - b.x);
-        const ra = stats[a.type].range;
-        const rb = stats[b.type].range;
+function checkHit(cannon, px, py) {
+  const rect = game.getBoundingClientRect();
+  const cRect = cannon.getBoundingClientRect();
 
-        if (dist < ra) b.hp -= stats[a.type].power;
-        if (dist < rb) a.hp -= stats[b.type].power;
-      }
-    }
-  }
+  const cx = cRect.left - rect.left + 20;
+  const cy = rect.bottom - cRect.top;
+
+  const dx = px - cx;
+  const dy = py - cy;
+
+  return Math.sqrt(dx*dx + dy*dy) < 30;
 }
 
-function removeDead() {
-  units = units.filter(u => {
-    if (u.hp <= 0) {
-      u.el.remove();
-      return false;
-    }
-    return true;
-  });
+function endShot(hit) {
+  if (projectile) projectile.el.remove();
+  projectile = null;
+  powerFill.style.width = "0%";
 }
 
-function checkVictory() {
-  const p1 = units.some(u => u.player === 1);
-  const p2 = units.some(u => u.player === 2);
-
-  if (!p1) document.getElementById("status").textContent = "Joueur 2 gagne !";
-  if (!p2) document.getElementById("status").textContent = "Joueur 1 gagne !";
-}
-
+// -------------------------
+// IA
+// -------------------------
 function aiLoop() {
-  const mode = document.getElementById("mode").value;
-  if (mode === "pvp") return;
+  if (!aiAlive || !playerAlive) return;
 
-  if (Math.random() < (mode === "ai_easy" ? 0.02 : 0.05)) {
-    const types = ["infantry","cavalry","artillery"];
-    const pick = types[Math.floor(Math.random()*types.length)];
-    spawnUnit(2, pick);
-  }
+  // IA tire toutes les 1.5 secondes
+  const power = 40 + Math.random() * 60;
+  aiShoot(power);
+
+  setTimeout(aiLoop, 1500);
 }
 
-setInterval(aiLoop, 200);
-update();
+function aiShoot(power) {
+  const rect = game.getBoundingClientRect();
+  const cRect = ai.getBoundingClientRect();
+
+  const startX = cRect.left - rect.left - 10;
+  const startY = rect.bottom - cRect.top - 20;
+
+  const angle = 135 * Math.PI / 180;
+  const speed = power / 4;
+
+  const proj = {
+    x: startX,
+    y: startY,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    el: createProjectile(startX, startY)
+  };
+
+  function animateAI() {
+    proj.x += proj.vx;
+    proj.y += proj.vy;
+    proj.vy -= 0.2;
+
+    proj.el.style.left = proj.x + "px";
+    proj.el.style.bottom = proj.y + "px";
+
+    if (proj.y <= 0 || proj.x < 0 || proj.x > 900) {
+      proj.el.remove();
+      return;
+    }
+
+    if (checkHit(player, proj.x, proj.y)) {
+      player.textContent = "💥";
+      playerAlive = false;
+      statusEl.textContent = "😵 L'IA t'a touché !";
+      proj.el.remove();
+      return;
+    }
+
+    requestAnimationFrame(animateAI);
+  }
+
+  animateAI();
+}
+
+// -------------------------
+// CONTROLES
+// -------------------------
+document.addEventListener("mousedown", startCharge);
+document.addEventListener("mouseup", stopCharge);
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") startCharge();
+});
+document.addEventListener("keyup", e => {
+  if (e.code === "Space") stopCharge();
+});
+
+// Lancement IA
+aiLoop();
 </script>
 
 </body>
