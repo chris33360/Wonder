@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Duel de Canons – Vent, Obstacles & Déplacement</title>
+<title>Duel de Canons – Obstacle Mobile & Déplacement</title>
 <style>
   body { font-family: Arial; text-align: center; }
   #game {
@@ -29,7 +29,6 @@
     width: 40px;
     height: 120px;
     background: #654321;
-    bottom: 0;
     border-radius: 5px;
   }
   #powerBar {
@@ -50,7 +49,7 @@
 </head>
 <body>
 
-<h1>Duel de Canons – Vent, Obstacles & Déplacement</h1>
+<h1>Duel de Canons – Obstacle Mobile & Déplacement</h1>
 
 <div>
   <button onclick="toggleWind()">Vent : <span id='windState'>ON</span></button>
@@ -63,8 +62,8 @@
   <div id="player" class="cannon">🧨</div>
   <div id="ai" class="cannon">🧨</div>
 
-  <div id="obs1" class="obstacle" style="left:420px;"></div>
-  <div id="obs2" class="obstacle" style="left:460px;"></div>
+  <!-- Obstacle mobile -->
+  <div id="obs1" class="obstacle" style="left:430px; bottom:50px;"></div>
 </div>
 
 <h3>Maintiens clic ou ESPACE pour charger, relâche pour tirer</h3>
@@ -77,6 +76,7 @@
 const game = document.getElementById("game");
 const player = document.getElementById("player");
 const ai = document.getElementById("ai");
+const obs1 = document.getElementById("obs1");
 const statusEl = document.getElementById("status");
 const powerFill = document.getElementById("powerFill");
 
@@ -116,8 +116,7 @@ function toggleWind() {
 function toggleObstacles() {
   obstaclesEnabled = !obstaclesEnabled;
   document.getElementById("obsState").textContent = obstaclesEnabled ? "ON" : "OFF";
-  document.getElementById("obs1").style.display = obstaclesEnabled ? "block" : "none";
-  document.getElementById("obs2").style.display = obstaclesEnabled ? "block" : "none";
+  obs1.style.display = obstaclesEnabled ? "block" : "none";
 }
 
 // -------------------------
@@ -125,7 +124,10 @@ function toggleObstacles() {
 // -------------------------
 function movePlayer(dy) {
   if (!playerAlive) return;
+
   let current = parseInt(player.style.bottom);
+  if (isNaN(current)) current = 180;
+
   let next = current + dy;
 
   if (next < 50) next = 50;
@@ -146,6 +148,8 @@ function aiMove() {
   if (!aiAlive) return;
 
   let current = parseInt(ai.style.bottom);
+  if (isNaN(current)) current = 180;
+
   let next = current + (Math.random() < 0.5 ? 10 : -10);
 
   if (next < 50) next = 50;
@@ -154,6 +158,24 @@ function aiMove() {
   ai.style.bottom = next + "px";
 }
 setInterval(aiMove, 800);
+
+// -------------------------
+// OBSTACLE MOBILE
+// -------------------------
+let obsDir = 1;
+function moveObstacle() {
+  if (!obstaclesEnabled) return;
+
+  let current = parseInt(obs1.style.bottom);
+  if (isNaN(current)) current = 50;
+
+  let next = current + obsDir * 4;
+
+  if (next < 40 || next > 240) obsDir *= -1;
+
+  obs1.style.bottom = next + "px";
+}
+setInterval(moveObstacle, 40);
 
 // -------------------------
 // CHARGE DU TIR
@@ -240,16 +262,17 @@ function animateProjectile() {
 }
 
 function checkObstacle(px, py) {
-  const obs1 = document.getElementById("obs1").getBoundingClientRect();
-  const obs2 = document.getElementById("obs2").getBoundingClientRect();
   const rect = game.getBoundingClientRect();
+  const oRect = obs1.getBoundingClientRect();
 
   const x = px + rect.left;
   const y = rect.bottom - py;
 
   return (
-    (x > obs1.left && x < obs1.right && y > obs1.top && y < obs1.bottom) ||
-    (x > obs2.left && x < obs2.right && y > obs2.top && y < obs2.bottom)
+    x > oRect.left &&
+    x < oRect.right &&
+    y > oRect.top &&
+    y < oRect.bottom
   );
 }
 
