@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Duel de Canons – Charge & Tir</title>
+<title>Duel de Canons – Vent, Obstacles & Déplacement</title>
 <style>
   body { font-family: Arial; text-align: center; }
   #game {
@@ -24,6 +24,14 @@
     position: absolute;
     font-size: 24px;
   }
+  .obstacle {
+    position: absolute;
+    width: 40px;
+    height: 120px;
+    background: #654321;
+    bottom: 0;
+    border-radius: 5px;
+  }
   #powerBar {
     width: 300px;
     height: 20px;
@@ -37,15 +45,26 @@
     width: 0%;
     background: red;
   }
+  button { margin: 5px; padding: 10px 20px; }
 </style>
 </head>
 <body>
 
-<h1>Duel de Canons – Tir en continu</h1>
+<h1>Duel de Canons – Vent, Obstacles & Déplacement</h1>
+
+<div>
+  <button onclick="toggleWind()">Vent : <span id='windState'>ON</span></button>
+  <button onclick="toggleObstacles()">Obstacles : <span id='obsState'>ON</span></button>
+</div>
+
+<h3>Vent actuel : <span id="windValue">0</span></h3>
 
 <div id="game">
-  <div id="player" class="cannon">💣</div>
-  <div id="ai" class="cannon">💣</div>
+  <div id="player" class="cannon">🧨</div>
+  <div id="ai" class="cannon">🧨</div>
+
+  <div id="obs1" class="obstacle" style="left:420px;"></div>
+  <div id="obs2" class="obstacle" style="left:460px;"></div>
 </div>
 
 <h3>Maintiens clic ou ESPACE pour charger, relâche pour tirer</h3>
@@ -66,6 +85,75 @@ let power = 0;
 let projectile = null;
 let aiAlive = true;
 let playerAlive = true;
+
+// Options
+let windEnabled = true;
+let obstaclesEnabled = true;
+
+// Vent
+let wind = 0;
+function updateWind() {
+  if (!windEnabled) {
+    wind = 0;
+    document.getElementById("windValue").textContent = "0";
+    return;
+  }
+  wind = Math.floor(Math.random() * 20) - 10;
+  document.getElementById("windValue").textContent = wind;
+}
+setInterval(updateWind, 5000);
+updateWind();
+
+// -------------------------
+// TOGGLE OPTIONS
+// -------------------------
+function toggleWind() {
+  windEnabled = !windEnabled;
+  document.getElementById("windState").textContent = windEnabled ? "ON" : "OFF";
+  updateWind();
+}
+
+function toggleObstacles() {
+  obstaclesEnabled = !obstaclesEnabled;
+  document.getElementById("obsState").textContent = obstaclesEnabled ? "ON" : "OFF";
+  document.getElementById("obs1").style.display = obstaclesEnabled ? "block" : "none";
+  document.getElementById("obs2").style.display = obstaclesEnabled ? "block" : "none";
+}
+
+// -------------------------
+// DEPLACEMENT VERTICAL JOUEUR
+// -------------------------
+function movePlayer(dy) {
+  if (!playerAlive) return;
+  let current = parseInt(player.style.bottom);
+  let next = current + dy;
+
+  if (next < 50) next = 50;
+  if (next > 300) next = 300;
+
+  player.style.bottom = next + "px";
+}
+
+document.addEventListener("keydown", e => {
+  if (e.code === "ArrowUp" || e.code === "KeyZ") movePlayer(10);
+  if (e.code === "ArrowDown" || e.code === "KeyS") movePlayer(-10);
+});
+
+// -------------------------
+// DEPLACEMENT VERTICAL IA
+// -------------------------
+function aiMove() {
+  if (!aiAlive) return;
+
+  let current = parseInt(ai.style.bottom);
+  let next = current + (Math.random() < 0.5 ? 10 : -10);
+
+  if (next < 50) next = 50;
+  if (next > 300) next = 300;
+
+  ai.style.bottom = next + "px";
+}
+setInterval(aiMove, 800);
 
 // -------------------------
 // CHARGE DU TIR
@@ -92,7 +180,7 @@ function chargeLoop() {
 }
 
 // -------------------------
-// TIR DU JOUEUR
+// TIR DU JOUEUR (HORIZONTAL)
 // -------------------------
 function shoot(power) {
   const rect = game.getBoundingClientRect();
@@ -101,14 +189,13 @@ function shoot(power) {
   const startX = cRect.left - rect.left + 30;
   const startY = rect.bottom - cRect.top - 20;
 
-  const angle = 45 * Math.PI / 180;
-  const speed = power / 4;
+  const speed = power / 3;
 
   projectile = {
     x: startX,
     y: startY,
-    vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed,
+    vx: speed,
+    vy: 0,
     el: createProjectile(startX, startY)
   };
 
@@ -118,7 +205,7 @@ function shoot(power) {
 function createProjectile(x, y) {
   const p = document.createElement("div");
   p.className = "projectile";
-  p.textContent = "🧨";
+  p.textContent = "💥";
   p.style.left = x + "px";
   p.style.bottom = y + "px";
   game.appendChild(p);
@@ -131,20 +218,17 @@ function createProjectile(x, y) {
 function animateProjectile() {
   if (!projectile) return;
 
-  projectile.x += projectile.vx;
-  projectile.y += projectile.vy;
-  projectile.vy -= 0.2; // gravité
+  projectile.x += projectile.vx + wind * 0.05;
 
   projectile.el.style.left = projectile.x + "px";
   projectile.el.style.bottom = projectile.y + "px";
 
-  // sol
-  if (projectile.y <= 0) return endShot();
-
-  // hors écran
   if (projectile.x < 0 || projectile.x > 900) return endShot();
 
-  // collision IA
+  if (obstaclesEnabled && checkObstacle(projectile.x, projectile.y)) {
+    return endShot();
+  }
+
   if (checkHit(ai, projectile.x, projectile.y)) {
     ai.textContent = "💥";
     aiAlive = false;
@@ -153,6 +237,20 @@ function animateProjectile() {
   }
 
   requestAnimationFrame(animateProjectile);
+}
+
+function checkObstacle(px, py) {
+  const obs1 = document.getElementById("obs1").getBoundingClientRect();
+  const obs2 = document.getElementById("obs2").getBoundingClientRect();
+  const rect = game.getBoundingClientRect();
+
+  const x = px + rect.left;
+  const y = rect.bottom - py;
+
+  return (
+    (x > obs1.left && x < obs1.right && y > obs1.top && y < obs1.bottom) ||
+    (x > obs2.left && x < obs2.right && y > obs2.top && y < obs2.bottom)
+  );
 }
 
 function checkHit(cannon, px, py) {
@@ -175,12 +273,11 @@ function endShot(hit) {
 }
 
 // -------------------------
-// IA
+// IA TIR (HORIZONTAL)
 // -------------------------
 function aiLoop() {
   if (!aiAlive || !playerAlive) return;
 
-  // IA tire toutes les 1.5 secondes
   const power = 40 + Math.random() * 60;
   aiShoot(power);
 
@@ -194,26 +291,28 @@ function aiShoot(power) {
   const startX = cRect.left - rect.left - 10;
   const startY = rect.bottom - cRect.top - 20;
 
-  const angle = 135 * Math.PI / 180;
-  const speed = power / 4;
+  const speed = power / 3;
 
   const proj = {
     x: startX,
     y: startY,
-    vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed,
+    vx: -speed,
+    vy: 0,
     el: createProjectile(startX, startY)
   };
 
   function animateAI() {
-    proj.x += proj.vx;
-    proj.y += proj.vy;
-    proj.vy -= 0.2;
+    proj.x += proj.vx + wind * 0.05;
 
     proj.el.style.left = proj.x + "px";
     proj.el.style.bottom = proj.y + "px";
 
-    if (proj.y <= 0 || proj.x < 0 || proj.x > 900) {
+    if (proj.x < 0 || proj.x > 900) {
+      proj.el.remove();
+      return;
+    }
+
+    if (obstaclesEnabled && checkObstacle(proj.x, proj.y)) {
       proj.el.remove();
       return;
     }
